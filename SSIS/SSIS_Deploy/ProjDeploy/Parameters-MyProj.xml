@@ -1,0 +1,44 @@
+<SSIS>
+<Development>
+	<ProjectParameters>
+	</ProjectParameters>
+	<Packages>
+		<Package Name="Copy  Tables.dtsx">
+			<Parameters>
+				<Parameter Name="Source_Server">localhost</Parameter>			
+				<Parameter Name="Source_InitialCatalog">localhost</Parameter>	
+				<Parameter Name="Target_Server">localhost</Parameter>	
+				<Parameter Name="Target_InitialCatalog">ODS</Parameter>				
+			</Parameters>
+		</Package>
+	</Packages>
+</Development>
+<Test>
+	<ProjectParameters>
+	</ProjectParameters>
+	<Packages>
+		<Package Name="Copy  Tables.dtsx">
+			<Parameters>
+				<Parameter Name="Email_Database_Server">localhost</Parameter>			
+				<Parameter Name="Email_InitialCatalog">localhost</Parameter>	
+				<Parameter Name="Target_Server">localhostS</Parameter>	
+				<Parameter Name="Target_InitialCatalog">ODS</Parameter>				
+			</Parameters>
+		</Package>
+	</Packages>
+</Test>
+<Production>
+	<ProjectParameters>
+	</ProjectParameters>
+	<Packages>
+		<Package Name="Copy  Tables.dtsx">
+			<Parameters>
+				<Parameter Name="Source_Server">localhost</Parameter>			
+				<Parameter Name="Source_InitialCatalog">localhost</Parameter>	
+				<Parameter Name="Target_Server">localhost</Parameter>	
+				<Parameter Name="Target_InitialCatalog">ODS</Parameter>				
+			</Parameters>
+		</Package>
+	</Packages>
+</Production>
+</SSIS>
