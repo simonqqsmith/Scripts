@@ -1,0 +1,248 @@
+
+<Package Name="STG_myschema_ApptHistory">
+      <Parameters>
+                  <Parameter Name="ODS_Server" DataType="String">localhost</Parameter>
+                  <Parameter Name="ODS_InitialCatalog" DataType="String">ODS</Parameter>
+                  <Parameter Name="Email_Database_Server" DataType="String">localhost</Parameter>
+                  <Parameter Name="Email_InitialCatalog" DataType="String">ODS</Parameter>
+                  <Parameter Name="ExternalFolder" DataType="String">localdir</Parameter>
+      </Parameters>
+    <Variables>
+        <#@ include file="Appt_Variables.biml" #>
+    </Variables>
+    <Connections>
+        <Connection ConnectionName="ODS">
+            <Expressions>
+                <Expression ExternalProperty="ConnectionString">"Data Source=" + @[$Package::ODS_Server] + ";Initial Catalog=" + @[$Package::ODS_InitialCatalog] + ";Provider=SQLNCLI11.1;Integrated Security=SSPI;"</Expression>
+            </Expressions>
+        </Connection>
+        <Connection ConnectionName="SSIS_Email_User">
+            <Expressions>
+                <Expression ExternalProperty="ConnectionString">"Data Source=" + @[$Package::Email_Database_Server] + ";Initial Catalog=" + @[$Package::Email_InitialCatalog] + ";Integrated Security=True;Application Name=SSIS-STG_myschema_ApptHistory-{EA1F5435-913D-4784-83D7-6E4AAD459BAC}SSIS_Email_User;"</Expression>
+            </Expressions>
+        </Connection>
+        <Connection ConnectionName="__ApptHistory">
+            <Expressions>
+                <Expression ExternalProperty="ConnectionString">@[$Package::ExternalFolder] + @[User::Filename]</Expression>
+            </Expressions>
+        </Connection>
+        <Connection ConnectionName="__Future">
+            <Expressions>
+                <Expression ExternalProperty="ConnectionString">@[$Package::ExternalFolder] + @[User::Filename]</Expression>
+            </Expressions>
+        </Connection>
+        <Connection ConnectionName="__ApptHistory_Errors">
+            <Expressions>
+                <Expression ExternalProperty="ConnectionString">@[$Package::ExternalFolder] + @[User::Filename]</Expression>
+            </Expressions>
+        </Connection>
+    </Connections>
+    <Tasks>
+        <ExecuteSQL Name="Update Audit Table - Start of Package" ConnectionName="ODS" ResultSet="SingleRow">
+            <DirectInput>EXEC CONTROLS.InitPackageLog ?</DirectInput>
+            <Parameters>
+                <Parameter Name="0" VariableName="System.PackageName" DataType="String"/>
+            </Parameters>
+            <Results>
+                <Result VariableName="User.varPackageLogID" Name="0" />
+            </Results>                
+        </ExecuteSQL>
+        <!-- ApptHistory Container -->
+        <Container Name="ApptHistory">
+            <PrecedenceConstraints LogicalType="And">
+                <Inputs>
+                    <Input OutputPathName="Update Audit Table - Start of Package.Output" EvaluationValue="Success" />
+                </Inputs>
+            </PrecedenceConstraints>
+            <Tasks>
+                <ExecuteSQL Name="Truncate ExtractDate Table" ConnectionName="ODS">
+                    <DirectInput>truncate table ODS.myschema.ExtractDate</DirectInput>
+                </ExecuteSQL>
+                <ForEachFileLoop  Folder="User.SourceDirectory" FileSpecification="_Appt*.txt" Name="OP_Appt_Loop" RetrieveFileNameFormat="NameAndExtension">
+                    <VariableMappings>
+                        <VariableMapping VariableName="User.Filename" Name="0" />
+                    </VariableMappings>                
+           			<Expressions>
+						<Expression PropertyName="Directory">@[User::SourceDirectory]</Expression>
+					</Expressions>
+                    <PrecedenceConstraints LogicalType="And">
+                        <Inputs>
+                            <Input OutputPathName="Truncate ExtractDate Table.Output"  EvaluationValue="Success" />
+                        </Inputs>
+                    </PrecedenceConstraints>
+                    <Tasks>
+                        <ExecuteSQL Name="Update Audit Table - Start of Extract" ConnectionName="ODS" ResultSet="SingleRow">
+                            <DirectInput>EXEC CONTROLS.InitExtractLog ?,'myschema.myschema_ApptHistory'</DirectInput>
+                            <Parameters>
+                                <Parameter Name="0" VariableName="User.varPackageLogID" DataType="Int32"/>
+                            </Parameters>
+                            <Results>
+                                <Result VariableName="User.varExtractLogID" Name="0" />
+                                <Result VariableName="User.varLastExtractDateTimeString" Name="1" />
+                            </Results> 
+                        </ExecuteSQL>                    
+                        <Dataflow Name="Load Tables" >
+                            <PrecedenceConstraints LogicalType="And">
+                                <Inputs>
+                                    <Input OutputPathName="Update Audit Table - Start of Extract.Output"  EvaluationValue="Success" />
+                                </Inputs>
+                            </PrecedenceConstraints>                        
+                            <Variables>
+                                <Variable Name="StartRow" Namespace="User" DataType="Int32">2</Variable>
+                                <Variable Name="EndRow" Namespace="User" DataType="Int32">2</Variable>
+                            </Variables>
+                            <Transformations>
+                                <FlatFileSource Name="Flat File Source" ConnectionName="__ApptHistory" RetainNulls="true"/>
+                                <RowCount VariableName="User.RowCount" Name="Row Count" />
+                                <OleDbDestination Name="myschema_myschema_ApptHistory" ConnectionName="ODS" UseFastLoadIfAvailable="true" >
+                                    <ExternalTableOutput Table="myschema.myschema_ApptHistory" />
+                               </OleDbDestination>  
+                            </Transformations>                               
+                        </Dataflow>
+                        <ExecuteSQL Name="Update Audit Table - Rows Processed" ConnectionName="ODS">
+                            <PrecedenceConstraints LogicalType="And">
+                                <Inputs>
+                                    <Input OutputPathName="Load Tables.Output"  EvaluationValue="Success" />
+                                </Inputs>
+                            </PrecedenceConstraints>
+                            <DirectInput>EXEC CONTROLS.EndExtractLog ?,?</DirectInput>
+                            <Parameters>
+                                <Parameter Name="0" VariableName="User.varExtractLogID" DataType="Int32"/>
+                                <Parameter Name="1" VariableName="User.RowCount" DataType="Int32"/>                    
+                            </Parameters>
+                        </ExecuteSQL>   
+                        <FileSystem Operation="RenameFile" Name="Move file to Processed Area">
+                            <PrecedenceConstraints LogicalType="And">
+                                <Inputs>
+                                    <Input OutputPathName="Update Audit Table - Rows Processed.Output" EvaluationValue="Success" />
+                                </Inputs>
+                            </PrecedenceConstraints>
+                            <FlatFileInput ConnectionName="__ApptHistory" />
+                            <VariableOutput VariableName="User.ProcessedFileString" />                           
+                        </FileSystem>
+                    </Tasks>
+                </ForEachFileLoop>
+                <ExecuteSQL Name="Insert ExtractDate" ConnectionName="ODS">
+                    <PrecedenceConstraints LogicalType="And">
+                        <Inputs>
+                            <Input OutputPathName="OP_Appt_Loop.Output" EvaluationValue="Success" />
+                        </Inputs>
+                    </PrecedenceConstraints>                
+                    <DirectInput>INSERT INTO myschema.ExtractDate (ExtractDate) (SELECT MAX(ExtractDate) FROM myschema.myschema_ApptHistory)</DirectInput>
+                </ExecuteSQL>                
+                <Script Name="Build email message content Success">
+                    <PrecedenceConstraints LogicalType="And">
+                        <Inputs>
+                            <Input OutputPathName="Insert ExtractDate.Output" EvaluationValue="Success" />
+                        </Inputs>
+                    </PrecedenceConstraints>
+                    <ScriptTaskProjectReference ScriptTaskProjectName="BuildMailMessage" />
+                </Script>                        
+            </Tasks>
+        </Container>
+        <!-- ApptFuture Container -->
+        <Container Name="ApptFuture">
+            <PrecedenceConstraints LogicalType="And">
+                <Inputs>
+                    <Input OutputPathName="ApptHistory.Output" EvaluationValue="Success" />
+                </Inputs>
+            </PrecedenceConstraints>
+            <Tasks>
+                <ForEachFileLoop  Folder="User.SourceDirectory" FileSpecification="Future__Appt*.txt" Name="OP_Appt_Loop" RetrieveFileNameFormat="NameAndExtension">
+                    <VariableMappings>
+                        <VariableMapping VariableName="User.Filename" Name="0" />
+                    </VariableMappings>
+           			<Expressions>
+						<Expression PropertyName="Directory">@[User::SourceDirectory]</Expression>
+					</Expressions>
+                    <Tasks>
+                        <ExecuteSQL Name="Update Audit Table - Start of Extract" ConnectionName="ODS" ResultSet="SingleRow">
+                            <DirectInput>EXEC CONTROLS.InitExtractLog ?,'myschema.myschema_BookedAppts'</DirectInput>
+                            <Parameters>
+                                <Parameter Name="0" VariableName="User.varPackageLogID" DataType="Int32"/>
+                            </Parameters>
+                            <Results>
+                                <Result VariableName="User.varExtractLogID" Name="0" />
+                                <Result VariableName="User.varLastExtractDateTimeString" Name="1" />
+                            </Results> 
+                        </ExecuteSQL>  
+                        <Dataflow Name="Load Tables" >
+                            <Variables>
+                                <Variable Name="StartRow" Namespace="User" DataType="Int32">2</Variable>
+                                <Variable Name="EndRow" Namespace="User" DataType="Int32">2</Variable>
+                            </Variables>
+                            <PrecedenceConstraints LogicalType="And">
+                                <Inputs>
+                                    <Input OutputPathName="Update Audit Table - Start of Extract.Output"  EvaluationValue="Success" />
+                                </Inputs>
+                            </PrecedenceConstraints>   
+                            <Transformations>
+                                <FlatFileSource Name="Flat File Source" ConnectionName="__Future" RetainNulls="true"/>
+                                <RowCount VariableName="User.RowCount" Name="Row Count" />                        
+                                <OleDbDestination Name="myschema_myschema_ApptFuture" ConnectionName="ODS" UseFastLoadIfAvailable="true" >
+                                    <ExternalTableOutput Table="myschema.myschema_BookedAppts" />
+                               </OleDbDestination>  
+                            </Transformations>                               
+                        </Dataflow>
+                        <ExecuteSQL Name="Update Audit Table - Rows Processed" ConnectionName="ODS">
+                                            <PrecedenceConstraints LogicalType="And">
+                                                <Inputs>
+                                                    <Input OutputPathName="Load Tables.Output"  EvaluationValue="Success" />
+                                                </Inputs>
+                                            </PrecedenceConstraints>
+                            <DirectInput>EXEC CONTROLS.EndExtractLog ?,?</DirectInput>
+                            <Parameters>
+                                <Parameter Name="0" VariableName="User.varExtractLogID" DataType="Int32"/>
+                                <Parameter Name="1" VariableName="User.RowCount" DataType="Int32"/>                    
+                            </Parameters>
+                        </ExecuteSQL>   
+                        <FileSystem Operation="RenameFile" Name="Move file to Processed Area">
+                            <PrecedenceConstraints LogicalType="And">
+                                <Inputs>
+                                    <Input OutputPathName="Update Audit Table - Rows Processed.Output" EvaluationValue="Success" />
+                                </Inputs>
+                            </PrecedenceConstraints>
+                            <FlatFileInput ConnectionName="__Future" />
+                            <VariableOutput VariableName="User.ProcessedFileString" />                           
+                        </FileSystem>
+                    </Tasks>
+                </ForEachFileLoop>
+                <Script Name="Build email message content Success">
+                    <PrecedenceConstraints LogicalType="And">
+                        <Inputs>
+                            <Input OutputPathName="OP_Appt_Loop.Output" EvaluationValue="Success" />
+                        </Inputs>
+                    </PrecedenceConstraints>
+                    <ScriptTaskProjectReference ScriptTaskProjectName="BuildMailMessage" />
+                </Script>                        
+            </Tasks>
+        </Container>
+        <ExecuteSQL Name="Insert End of process into Staging PackageAuditingTable" ConnectionName="ODS">
+            <PrecedenceConstraints LogicalType="And">
+                <Inputs>
+                    <Input OutputPathName="ApptFuture.Output"  EvaluationValue="Success" />
+                </Inputs>
+            </PrecedenceConstraints>
+            <DirectInput>EXEC CONTROLS.EndPackageLog ?</DirectInput>
+            <Parameters>
+                <Parameter Name="0" VariableName="User.varPackageLogID"  DataType="Int32"/>
+            </Parameters>
+        </ExecuteSQL>
+        <NotifyOperator ConnectionName="SSIS_Email_User" Name="Notify Operator">
+            <PrecedenceConstraints LogicalType="Or">
+                <Inputs>
+                    <Input OutputPathName="Insert End of process into Staging PackageAuditingTable.Output"  EvaluationValue="Success" />
+                </Inputs>
+            </PrecedenceConstraints>
+            <OperatorsToNotify>
+                <Operator>ODS_Admin</Operator>
+            </OperatorsToNotify>
+            <Subject>OPD_SSIS Notification:STG_myschema_ApptHistory</Subject>
+            <Message>Files and rows processed****************************************</Message>
+            <Expressions>
+                <Expression PropertyName="Subject">"Files and rows processed" + "\n\r" + "****************************************" +@[User::EmailMessageString]</Expression>
+                <Expression PropertyName="Message">"OPD_SSIS Notification:"+  @[System::PackageName]+  @[User::SubjectRowsMessage]  +  (DT_STR, 10, 1252) @[User::RowCountMessage]</Expression>
+            </Expressions>
+        </NotifyOperator>                
+    </Tasks>
+</Package>

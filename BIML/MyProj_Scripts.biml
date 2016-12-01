@@ -1,0 +1,61 @@
+<ScriptProjects>
+    <ScriptTaskProject ProjectCoreName="stBuildMailMessage" Name="BuildMailMessage">
+        <AssemblyReferences>                            
+            <AssemblyReference AssemblyPath="System" />
+            <AssemblyReference AssemblyPath="System.Data" />
+            <AssemblyReference AssemblyPath="System.Windows.Forms" />
+            <AssemblyReference AssemblyPath="System.Xml" />
+            <AssemblyReference AssemblyPath="Microsoft.SqlServer.ManagedDTS.dll" />
+            <AssemblyReference AssemblyPath="Microsoft.SqlServer.ScriptTask.dll" />
+        </AssemblyReferences> 
+        <ReadOnlyVariables>
+            <Variable VariableName="PackageName" Namespace="System" DataType="String" />
+            <Variable VariableName="RowCount" Namespace="User" DataType="String" />
+            <Variable VariableName="Filename" Namespace="User" DataType="String" />
+            <Variable VariableName="FileExists"  Namespace="User" DataType="Boolean"/>
+        </ReadOnlyVariables>
+        <ReadWriteVariables>
+            <Variable VariableName="EmailMessageString"  Namespace="User" DataType="String"/>
+            <Variable VariableName="SubjectRowsMessage"  Namespace="User" DataType="String"/>
+            <Variable VariableName="RowCountMessage"  Namespace="User" DataType="String"/>
+        </ReadWriteVariables>
+        <Files>
+            <File Path="BuildMailMessage.cs">
+                using System;
+                using System.Data;
+                using Microsoft.SqlServer.Dts.Runtime;
+                using System.Windows.Forms;
+
+                namespace User
+                {
+                [Microsoft.SqlServer.Dts.Tasks.ScriptTask.SSISScriptTaskEntryPointAttribute]
+                    public partial class ScriptMain : Microsoft.SqlServer.Dts.Tasks.ScriptTask.VSTARTScriptObjectModelBase
+                    {
+                        public void Main()
+                        {
+                            Boolean fExists = (Boolean)Dts.Variables["User::FileExists"].Value;
+                            if (fExists)
+                            {
+                                Dts.Variables["User::EmailMessageString"].Value = "\r\n" + Dts.Variables["User::EmailMessageString"].Value.ToString() + "\r\n" + Dts.Variables["User::Filename"].Value.ToString() + "\t:" + Dts.Variables["User::RowCount"].Value.ToString();
+                                Dts.Variables["User::RowCountMessage"].Value = Dts.Variables["User::RowCount"].Value;
+                                Dts.Variables["User::SubjectRowsMessage"].Value = "ROWS=";
+                            }
+                            else
+                            {
+                                Dts.Variables["User::EmailMessageString"].Value = "\r\n" + Dts.Variables["User::EmailMessageString"].Value.ToString() + "\r\n" + Dts.Variables["System::PackageName"].Value.ToString() + "\t:" + Dts.Variables["User::RowCount"].Value.ToString();
+                                Dts.Variables["User::SubjectRowsMessage"].Value = "ERROR:ROWS=";
+                            }
+                            Dts.TaskResult = (int)ScriptResults.Success;
+                        }
+                
+                        enum ScriptResults
+                        {
+                            Success = Microsoft.SqlServer.Dts.Runtime.DTSExecResult.Success,
+                            Failure = Microsoft.SqlServer.Dts.Runtime.DTSExecResult.Failure
+                        };
+                    }
+                }
+            </File>
+        </Files>
+    </ScriptTaskProject>
+</ScriptProjects>

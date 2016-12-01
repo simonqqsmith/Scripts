@@ -1,0 +1,7 @@
+<Connections>
+    <FlatFileConnection Name="__ApptHistory" FilePath="localdir_Appt.txt" FileFormat="_Appt" />
+    <FlatFileConnection Name="__Future" FilePath="localdirFuture__Appt.txt" FileFormat="_Appt" />
+    <FlatFileConnection Name="__ApptHistory_Errors" FilePath="localdirLogging\_Load_Errors__ApptHistory.txt" FileFormat="__ApptHistory_Errors" />
+    <AdoNetConnection Name="SSIS_Email_User" ConnectionString="Data Source=localhost;Initial Catalog=ODS;Integrated Security=True;Application Name=SSIS-STG_myschema_ApptHistory-{EA1F5435-913D-4784-83D7-6E4AAD459BAC}SSIS_Email_User;" Provider="System.Data.SqlClient.SqlConnection, System.Data, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"/>
+    <OleDbConnection Name="ODS" ConnectionString="Data Source=localhost;Initial Catalog=ODS;Provider=SQLNCLI11.1;Integrated Security=SSPI;" />
+</Connections>  

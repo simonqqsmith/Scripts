@@ -1,0 +1,8 @@
+<Biml xmlns="http://schemas.varigence.com/biml.xsd">
+<#@ include file="Connection_examples.biml" #>
+<#@ include file="SCRPT_examples.biml" #>
+<#@ include file="FileFmts_examples.biml" #>
+<Packages>
+    <#@ include file="PKG_example.biml" #>
+</Packages>
+</Biml>

@@ -1,0 +1,53 @@
+
+<Package Name="PKG_example">
+    <Variables>
+        <#@ include file="VAR_examples.biml" #>
+    </Variables>
+    <Tasks>
+        <ExecuteSQL Name="Update Audit Table - Start of Package" ConnectionName="ODS">
+            <DirectInput>EXEC CONTROLS.UPDATE_AUDIT ?,0,'Start of Package',''</DirectInput>
+            <Parameters>
+                <Parameter Name="0" VariableName="System.PackageName" DataType="String"/>
+            </Parameters>
+        </ExecuteSQL>
+         <!-- The Main Container -->
+        <Container Name="Main_CONT">
+            <PrecedenceConstraints LogicalType="And">
+                <Inputs>
+                    <Input OutputPathName="Update Audit Table - Start of Package.Output" EvaluationOperation="Expression" Expression="@[User::FileExists]==True" />
+                </Inputs>
+            </PrecedenceConstraints>
+            <Tasks>
+                <#@ include file="CONT_LoadTables_Serial.biml" #>
+                <#@ include file="CONT_LoadTables_Parrallel.biml" #>
+            </Tasks>
+        </Container>
+        <ExecuteSQL Name="Insert End of process into Staging PackageAuditingTable" ConnectionName="ODS">
+            <PrecedenceConstraints LogicalType="And">
+                <Inputs>
+                    <Input OutputPathName="Main_CONT.Output"  EvaluationValue="Success" />
+                </Inputs>
+            </PrecedenceConstraints>
+            <DirectInput>EXEC CONTROLS.UPDATE_AUDIT ?,0,'End of package',''</DirectInput>
+            <Parameters>
+                <Parameter Name="0" VariableName="System.PackageName"  DataType="String"/>
+            </Parameters>
+        </ExecuteSQL>
+        <NotifyOperator ConnectionName="SSIS_Email_User" Name="Notify Operator">
+            <PrecedenceConstraints LogicalType="And">
+                <Inputs>
+                    <Input OutputPathName="Insert End of process into Staging PackageAuditingTable.Output"  EvaluationValue="Success" />
+                </Inputs>
+            </PrecedenceConstraints>
+            <OperatorsToNotify>
+                <Operator></Operator>
+            </OperatorsToNotify>
+            <Subject>OPD_SSIS Notification:STG_myschema_ApptHistory</Subject>
+            <Message>Files and rows processed****************************************</Message>
+            <Expressions>
+                <Expression PropertyName="Subject">"Files and rows processed" + "\n\r" + "****************************************" +@[User::EmailMessageString]</Expression>
+                <Expression PropertyName="Message">"OPD_SSIS Notification:"+  @[System::PackageName]+  @[User::SubjectRowsMessage]  +  (DT_STR, 10, 1252) @[User::RowCountMessage]</Expression>
+            </Expressions>
+        </NotifyOperator>                
+    </Tasks>
+</Package>

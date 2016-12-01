@@ -1,0 +1,4 @@
+  <Connections>
+    <OleDbConnection Name="Source" ConnectionString="Data Source=localhost;Initial Catalog=ODS_Ref;Provider=SQLNCLI11.1;Integrated Security=SSPI;" />
+    <OleDbConnection Name="Target" ConnectionString="Data Source=localhost;Initial Catalog=ODS_dev;Provider=SQLNCLI11.1;Integrated Security=SSPI;" />
+  </Connections>

@@ -1,0 +1,19 @@
+
+<FileFormats>
+    <FlatFileFormat Name="_Appt" CodePage="1252" ColumnNamesInFirstDataRow="true" RowDelimiter="CRLF" HeaderRowDelimiter="Comma" TextQualifer="_x0022_" IsUnicode="false">
+      <Columns>
+        <Column Name="ExtractDate" DataType="DateTime" Delimiter="Comma" />
+        <Column Name="ApptDate" DataType="DateTime" Delimiter="Comma" />
+        <Column Name="ApptWeek" Length="255" DataType="String" Delimiter="Comma" />
+        <Column Name="ID" Length="255" DataType="String" Delimiter="Comma" />
+        <Column Name="Numbert" DataType="Double" Delimiter="Comma" />
+      </Columns>
+    </FlatFileFormat>
+    <FlatFileFormat Name="__ApptHistory_Errors" Locale="Lcid3081" CodePage="1252" TextQualifer="_x0022_" ColumnNamesInFirstDataRow="true" RowDelimiter="">
+      <Columns>
+        <Column Name="Flat File Source Error Output Column" Length="100" DataType="AnsiString" Delimiter="Comma" MaximumWidth="100" />
+        <Column Name="ErrorCode" Length="100" DataType="AnsiString" Delimiter="Comma" MaximumWidth="100" />
+        <Column Name="ErrorColumn" Length="100" DataType="AnsiString" Delimiter="CRLF" MaximumWidth="100" />
+      </Columns>
+    </FlatFileFormat>
+</FileFormats>

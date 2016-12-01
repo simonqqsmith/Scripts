@@ -1,0 +1,98 @@
+<#@ import namespace="System.Data" #>
+<#@ import namespace="System.Data.SqlClient" #>
+<#@ template language="C#" tier="2" #>
+<!-- The _source_con_string will need to be reset if the source is moved since the last build -->
+<#
+    string _source_con_string = @"Data Source=localhost;Initial Catalog=MyDB;Integrated Security=SSPI;";
+    string _table_name_sql = "select  TABLE_SCHEMA , table_name from INFORMATION_SCHEMA.TABLES  where TABLE_TYPE='BASE TABLE' and table_name NOT IN ('sysssislog','sysdiagrams')"; 
+    string _targetschema = "MyProj";
+     
+    DataTable _table_names = new DataTable();
+    SqlDataAdapter _table_name_da = new SqlDataAdapter(_table_name_sql, _source_con_string);
+    _table_name_da.Fill(_table_names);  
+     
+#>
+<Biml xmlns="http://schemas.varigence.com/biml.xsd">  
+    <Connections>
+        <OleDbConnection Name="Source" ConnectionString="Data Source=localhost;Initial Catalog=MyDB;Provider=SQLNCLI11.1;Integrated Security=SSPI;" />
+        <OleDbConnection Name="Target" ConnectionString="Data Source=localhost;Initial Catalog=ODS;Provider=SQLNCLI11.1;Integrated Security=SSPI;" />
+    </Connections>
+    <Packages>
+        <Package Name="Copy MyProj Tables" ConstraintMode="Linear">
+            <Parameters>
+                <Parameter Name="Source_Server" DataType="String">localhost</Parameter>
+                <Parameter Name="Source_InitialCatalog" DataType="String">MyDB</Parameter>
+                <Parameter Name="Target_Server" DataType="String">localhost</Parameter>
+                <Parameter Name="Target_InitialCatalog" DataType="String">ODS</Parameter>
+            </Parameters>
+            <Variables>
+                <Variable Name="varPackageLogID" DataType="Int32">0</Variable>
+                <Variable Name="varLastExtractDateTimeString" DataType="String"></Variable>
+                <Variable Name="varExtractLogID" DataType="Int32">0</Variable>
+                <Variable Name="RowCount" DataType="Int32">0</Variable>
+            </Variables>
+            <Connections>
+                <Connection ConnectionName="Source">
+                    <Expressions>
+                        <Expression ExternalProperty="ConnectionString">"Data Source=" + @[$Package::Source_Server] + ";Initial Catalog=" + @[$Package::Source_InitialCatalog] + ";Provider=SQLNCLI11.1;Integrated Security=SSPI;"</Expression>
+                    </Expressions>
+                </Connection>
+                <Connection ConnectionName="Target">
+                    <Expressions>
+                        <Expression ExternalProperty="ConnectionString">"Data Source=" + @[$Package::Target_Server] + ";Initial Catalog=" + @[$Package::Target_InitialCatalog] + ";Provider=SQLNCLI11.1;Integrated Security=SSPI;"</Expression>
+                    </Expressions>
+                </Connection>
+            </Connections>
+            <Tasks>
+                <ExecuteSQL Name="Update Audit Table - Start of Package" ConnectionName="Target" ResultSet="SingleRow">
+                    <DirectInput>EXEC CONTROLS.InitPackageLog ?</DirectInput>
+                    <Parameters>
+                        <Parameter Name="0" VariableName="System.PackageName" DataType="String"/>
+                    </Parameters>
+                    <Results>
+                        <Result VariableName="User.varPackageLogID" Name="0" />
+                    </Results>                
+                </ExecuteSQL>
+                <# foreach(DataRow _table in _table_names.Rows) {    #>
+                    <ExecuteSQL Name="Update Audit Table - Start of <#=_table["TABLE_SCHEMA"]#>_<#= _table["TABLE_NAME"]#> Extract" ConnectionName="Target" ResultSet="SingleRow">
+                        <DirectInput>EXEC CONTROLS.InitExtractLog ?,'<#=_table["TABLE_SCHEMA"]#>_<#= _table["TABLE_NAME"]#>'</DirectInput>
+                        <Parameters>
+                            <Parameter Name="0" VariableName="User.varPackageLogID" DataType="Int32"/>
+                        </Parameters>
+                        <Results>
+                            <Result VariableName="User.varExtractLogID" Name="0" />
+                            <Result VariableName="User.varLastExtractDateTimeString" Name="1" />
+                        </Results> 
+                    </ExecuteSQL>  
+                    <ExecuteSQL Name="Truncate <#=_table["TABLE_SCHEMA"]#>_<#= _table["TABLE_NAME"]#>" ConnectionName="Target">
+                        <DirectInput>truncate table [<#= _targetschema #>].[<#=_table["TABLE_SCHEMA"]#>_<#= _table["TABLE_NAME"]#>]</DirectInput>
+                    </ExecuteSQL>
+                    <Dataflow Name="DFT_CopyData_<#=_table["TABLE_SCHEMA"]#>_<#= _table["TABLE_NAME"]#>">
+                        <Transformations>
+                            <OleDbSource Name="Retrieve Rows" ConnectionName="Source">
+                                <DirectInput>SELECT * FROM [<#=_table["TABLE_SCHEMA"] #>].[<#= _table["TABLE_NAME"]#>]</DirectInput>
+                            </OleDbSource>
+                            <RowCount VariableName="User.RowCount" Name="Row Count" />  
+                            <OleDbDestination Name="Load Rows" ConnectionName="Target">
+                                <ExternalTableOutput Table="[<#= _targetschema #>].[<#=_table["TABLE_SCHEMA"]#>_<#= _table["TABLE_NAME"]#>]" />
+                            </OleDbDestination>
+                        </Transformations>
+                    </Dataflow>
+                    <ExecuteSQL Name="Update Audit Table - <#=_table["TABLE_SCHEMA"]#>_<#= _table["TABLE_NAME"]#> Rows Processed" ConnectionName="Target">
+                        <DirectInput>EXEC CONTROLS.EndExtractLog ?,?</DirectInput>
+                        <Parameters>
+                            <Parameter Name="0" VariableName="User.varExtractLogID" DataType="Int32"/>
+                            <Parameter Name="1" VariableName="User.RowCount" DataType="Int32"/>                    
+                        </Parameters>
+                    </ExecuteSQL> 
+                <# } #>
+                <ExecuteSQL Name="Insert End of process into Staging PackageAuditingTable" ConnectionName="Target">
+                    <DirectInput>EXEC CONTROLS.EndPackageLog ?</DirectInput>
+                    <Parameters>
+                        <Parameter Name="0" VariableName="User.varPackageLogID"  DataType="Int32"/>
+                    </Parameters>
+                </ExecuteSQL>
+            </Tasks>
+        </Package>
+    </Packages>
+</Biml>

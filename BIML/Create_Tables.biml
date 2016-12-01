@@ -1,0 +1,84 @@
+<#@ import namespace="System.Data" #>
+<#@ import namespace="System.Data.SqlClient" #>
+<#@ template language="C#" tier="2" #>
+<#
+    string _stage_con_string = @"Data Source=localhost;Initial Catalog=ODS_Ref;Integrated Security=SSPI;";
+    string _table_name_sql = "select  TABLE_SCHEMA , table_name from INFORMATION_SCHEMA.TABLES  where TABLE_TYPE='BASE TABLE'"; 
+     
+    DataTable _table_names = new DataTable();
+    SqlDataAdapter _table_name_da = new SqlDataAdapter(_table_name_sql, _stage_con_string);
+    _table_name_da.Fill(_table_names);  
+     
+#>
+<#+ 
+public string RowConversion(DataRow Row)
+{
+    string _ret = "[" + Row["COLUMN_NAME"] + "] " + Row["DATA_TYPE"];
+ 
+ 
+    switch (Row["DATA_TYPE"].ToString().ToUpper())
+    {
+        case "NVARCHAR":
+        case "VARCHAR":
+        case "NCHAR":
+        case "CHAR":
+        case "BINARY":
+        case "VARBINARY":
+            if (Row["CHARACTER_MAXIMUM_LENGTH"].ToString() == "-1")
+                _ret += "(max)";
+            else
+                _ret += "(" + Row["CHARACTER_MAXIMUM_LENGTH"] + ")";
+            break;
+ 
+        case "NUMERIC":
+            _ret += "(" + Row["NUMERIC_PRECISION"] + "," + Row["NUMERIC_SCALE"] + ")";
+            break;
+ 
+        case "FLOAT":
+            _ret += "(" + Row["NUMERIC_PRECISION"] + ")";
+            break;
+    }
+   
+    return _ret;
+}
+#> 
+ 
+<Biml xmlns="http://schemas.varigence.com/biml.xsd">
+  <Connections>
+    <OleDbConnection Name="Target" ConnectionString="Data Source=localhost;Initial Catalog=ODS_dev;Provider=SQLNCLI11.1;Integrated Security=SSPI;" />
+  </Connections>
+    <Packages>
+        <Package Name="Create_Tables" ConstraintMode="Linear">
+            <Tasks>
+                <# foreach(DataRow _table in _table_names.Rows) {    #>           
+                <ExecuteSQL Name="create_import_<#= _table["TABLE_SCHEMA"] #>_<#= _table["TABLE_NAME"] #>" ConnectionName="Target">
+                    <DirectInput>
+                        create table <#= _table["TABLE_SCHEMA"] #>.<#= _table["TABLE_NAME"] #>
+                        (
+                        <#
+                             
+                            string _col_name_sql = "select COLUMN_NAME, DATA_TYPE,  CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA='" + _table["TABLE_SCHEMA"] + "' and TABLE_NAME='"+ _table["TABLE_NAME"] + "' order by ORDINAL_POSITION ";
+ 
+                            DataTable _col_names = new DataTable();
+                            SqlDataAdapter _col_names_da = new SqlDataAdapter(_col_name_sql, _stage_con_string);
+                            _col_names_da.Fill(_col_names);
+ 
+                            for (int _i=0; _i<_col_names.Rows.Count ; _i++  )
+                            {
+                                DataRow _r = _col_names.Rows[_i];
+                                 
+                                if (_i == 0)
+                                    WriteLine(RowConversion(_r));
+                                else
+                                    WriteLine(", " + RowConversion(_r));                                
+                            }
+                             
+                        #>
+                        )
+          </DirectInput>
+                </ExecuteSQL>
+                <# } #>
+      </Tasks>
+        </Package>
+    </Packages>
+</Biml>

@@ -1,0 +1,17 @@
+
+<Variable Name="EmailMessageString" DataType="String"></Variable>
+<Variable Name="FileDate" DataType="String" EvaluateAsExpression="true" >(DT_STR, 4 , 1252)DATEPART( "year" , GETDATE() ) + "" + RIGHT( "00" + (DT_STR, 2 , 1252)DATEPART( "month" , GETDATE() ) , 2 ) + "" + RIGHT( "00" + (DT_STR, 2 , 1252)DATEPART( "day" , GETDATE() ) , 2 )</Variable>
+<Variable Name="FileExists" DataType="Boolean">False</Variable>
+<Variable Name="Filename" DataType="String">__ApptHistory.csv</Variable>
+<Variable Name="LoggingDirectory" DataType="String" EvaluateAsExpression="true">@[$Package::ExternalFolder] + "ODS_Logging\\"</Variable>
+<Variable Name="ProcessedDirectory" DataType="String" EvaluateAsExpression="true">@[$Package::ExternalFolder] + "ODS_Processed\\"</Variable>
+<Variable Name="ProcessedFileString" DataType="String" EvaluateAsExpression="true">@[User::ProcessedDirectory] +@[User::FileDate] +"_"+@[User::Filename]</Variable>
+<Variable Name="RowCount" DataType="Int32">0</Variable>
+<Variable Name="RowCountMessage" DataType="Int32">-1</Variable>
+<Variable Name="SourceDirectory" DataType="String" EvaluateAsExpression="true">@[$Package::ExternalFolder]</Variable>
+<Variable Name="SourceFileString" DataType="String" EvaluateAsExpression="true">@[User::SourceDirectory] +@[User::Filename]</Variable>
+<Variable Name="SubjectRowsMessage" DataType="String"></Variable>
+<Variable Name="varPackageLogID" DataType="Int32">0</Variable>
+<Variable Name="varLastExtractDateTimeString" DataType="String"></Variable>
+<Variable Name="varExtractLogID" DataType="Int32">0</Variable>
+

@@ -1,0 +1,18 @@
+<Packages>
+        <Package Name="Copy Tables" ConstraintMode="Linear">
+            <Tasks>
+            <# foreach(DataRow _table in _table_names.Rows) {    #> 
+                <Dataflow Name="DFT_CopyData_<#=_table["TABLE_NAME"]#>">
+                    <Transformations>
+                        <OleDbSource Name="Retrieve Rows" ConnectionName="Source">
+                            <DirectInput>SELECT * FROM <#=_table["TABLE_SCHEMA"] #>.<#= _table["TABLE_NAME"]#></DirectInput>
+                        </OleDbSource>
+                        <OleDbDestination Name="Load Rows" ConnectionName="Target">
+                            <ExternalTableOutput Table="<#= _importschema #>.<#=_table["TABLE_NAME"]#>" />
+                        </OleDbDestination>
+                    </Transformations>
+                </Dataflow>
+            <# } #>
+            </Tasks>
+        </Package>
+    </Packages>

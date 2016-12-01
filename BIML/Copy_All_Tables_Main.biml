@@ -1,0 +1,17 @@
+<#@ import namespace="System.Data" #>
+<#@ import namespace="System.Data.SqlClient" #>
+<#@ template language="C#" tier="2" #>
+<#
+    string _stage_con_string = @"Data Source=localhost;Initial Catalog=ODS_Ref;Integrated Security=SSPI;";
+    string _table_name_sql = "select  TABLE_SCHEMA , table_name from INFORMATION_SCHEMA.TABLES  where TABLE_TYPE='BASE TABLE'"; 
+    string _importschema = "TrackDS";
+     
+    DataTable _table_names = new DataTable();
+    SqlDataAdapter _table_name_da = new SqlDataAdapter(_table_name_sql, _stage_con_string);
+    _table_name_da.Fill(_table_names);  
+     
+#>
+<Biml xmlns="http://schemas.varigence.com/biml.xsd">
+    <#@ include file="Copy_All_Tables_Connections.biml" #>
+    <#@ include file="Copy_All_Tables_Package.biml" #>
+</Biml>

@@ -1,0 +1,13 @@
+<# var allTableNames = new[] { "Tab1", "Tab2", "Tab3", "Tab4" }; #>
+<# foreach (var tableName in allTableNames) { #>
+<Dataflow Name="DFT_Copy <#=tableName#>">
+    <Transformations>
+        <OleDbSource Name="Retrieve Rows" ConnectionName="Source">
+            <DirectInput>SELECT * FROM <#=tableName#></DirectInput>
+        </OleDbSource>
+        <OleDbDestination Name="Load Rows" ConnectionName="Target">
+            <ExternalTableOutput Table="<#=tableName#>" />
+        </OleDbDestination>
+    </Transformations>
+</Dataflow>
+ <# } #>

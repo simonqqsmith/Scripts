@@ -1,0 +1,48 @@
+<# var pallTableNames = new[] { "TrackDS.tblDivisionRef", "TrackDS.tblSpecialityRef", "TrackDS.tblUnitWardExclude", "TrackDS.tblWardRef" }; #>
+<# var ploopcount = 0; #>
+<# foreach (var ptableName in pallTableNames) { #>
+<# ploopcount = ploopcount + 1; #>
+<Container Name="Parallel_CONT_Copy <#=ptableName#>">
+    <Variables>
+        <Variable Name="RowCount<#=ploopcount#>" DataType="Int32">0</Variable>
+        <Variable Name="TableName<#=ploopcount#>" DataType="String"><#=ptableName#></Variable>
+    </Variables>
+    <Tasks>
+        <ExecuteSQL Name="Truncate <#=ptableName#>" ConnectionName="Target">
+            <DirectInput>truncate table <#=ptableName#></DirectInput>
+            <Parameters>
+                <Parameter Name="0" VariableName="System.PackageName"  DataType="String"/>
+            </Parameters>
+        </ExecuteSQL>   
+        <Dataflow Name="DFT_Copy <#=ptableName#>">
+            <PrecedenceConstraints LogicalType="And">
+                <Inputs>
+                    <Input OutputPathName="Truncate <#=ptableName#>.Output"  EvaluationValue="Success" />
+                </Inputs>
+            </PrecedenceConstraints>
+            <Transformations>
+                <OleDbSource Name="Retrieve Rows" ConnectionName="Source">
+                    <DirectInput>SELECT * FROM <#=ptableName#></DirectInput>
+                </OleDbSource>
+                <RowCount VariableName="User.RowCount<#=ploopcount#>" Name="Row Count" />
+                <OleDbDestination Name="Load Rows" ConnectionName="Target">
+                    <ExternalTableOutput Table="<#=ptableName#>" />
+                </OleDbDestination>
+            </Transformations>
+        </Dataflow>
+        <ExecuteSQL Name="Update Audit Table - Rows Processed" ConnectionName="ODS">
+            <PrecedenceConstraints LogicalType="And">
+                <Inputs>
+                    <Input OutputPathName="DFT_Copy <#=ptableName#>.Output"  EvaluationValue="Success" />
+                </Inputs>
+            </PrecedenceConstraints>
+            <DirectInput>EXEC CONTROLS.UPDATE_AUDIT ?,?,'Records Processed',''</DirectInput>
+            <Parameters>
+                <Parameter Name="0" VariableName="System.PackageName"  DataType="String"/>
+                <Parameter Name="1" VariableName="User.RowCount<#=ploopcount#>"  DataType="Int32"/>
+                <Parameter Name="2" VariableName="User.TableName<#=ploopcount#>"  DataType="String"/>
+            </Parameters>
+        </ExecuteSQL>
+    </Tasks>
+</Container>
+<# } #>

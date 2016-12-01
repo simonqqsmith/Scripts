@@ -1,0 +1,15 @@
+
+    <FileFormats>
+        <FlatFileFormat Name="__ApptHistory" Locale="Lcid3081" CodePage="1252" TextQualifer="_x0022_" ColumnNamesInFirstDataRow="true" RowDelimiter="">
+          <Columns>
+            <Column Name="ExtractDate" DataType="Date" Delimiter="Tab" />
+          </Columns>
+        </FlatFileFormat>
+        <FlatFileFormat Name="__ApptHistory_Errors" Locale="Lcid3081" CodePage="1252" TextQualifer="_x0022_" ColumnNamesInFirstDataRow="true" RowDelimiter="">
+          <Columns>
+            <Column Name="Flat File Source Error Output Column" Length="100" DataType="AnsiString" Delimiter="Comma" MaximumWidth="100" />
+            <Column Name="ErrorCode" Length="100" DataType="AnsiString" Delimiter="Comma" MaximumWidth="100" />
+            <Column Name="ErrorColumn" Length="100" DataType="AnsiString" Delimiter="CRLF" MaximumWidth="100" />
+          </Columns>
+        </FlatFileFormat>
+    </FileFormats>
