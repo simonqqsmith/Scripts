@@ -1,0 +1,163 @@
+<#@ import namespace="System.Data" #>
+<#@ import namespace="System.Data.SqlClient" #>
+<#@ template language="C#" tier="1" #>
+<#@ import namespace="Varigence.Biml.CoreLowerer.SchemaManagement" #>
+<#@ import namespace="System.Text.RegularExpressions" #>
+<!-- The _source_con_string will need to be reset if the source is moved since the last build -->
+<#
+// Set sql server target schema name (typically the application name)
+string _targetschema = "myapp";
+var includedSchema = new List<string>{_targetschema};
+// Set the Oracle table owner
+string _table_schema = "SCOTT";
+// reference the connection set in the root node script
+// this is the pre-built sql server database (ODS)
+var conn = RootNode.OleDbConnections["Ref"];
+
+// Set list of tables to be exluded
+var a_excludedTables = new List<string>{"MYTAB"};
+string _excludedTables = "'" + string.Join("','", a_excludedTables.ToArray()) + "'";
+
+// Set nmodulus to break down large number of tables into several packages 
+int nmodulus = 5;
+
+#>
+<Biml xmlns="http://schemas.varigence.com/biml.xsd">  
+    <Connections>
+        <CustomSsisConnection Name="Source" CreationName="MSORA" DelayValidation="true"/>
+        <OleDbConnection Name="Target" ConnectionString="Data Source=localhost;Initial Catalog=ODS;Provider=SQLNCLI11.1;Integrated Security=SSPI;" />
+    </Connections>
+    <Packages>
+    <# for(int packagecount = 1; packagecount <= nmodulus; packagecount++) { #>
+        <Package Name="Copy myapp Tables <#=packagecount#>" ConstraintMode="Linear" DelayValidation="true">
+            <Parameters>
+                <Parameter Name="Source_Server" DataType="String">localhost</Parameter>
+                <Parameter Name="Source_User" DataType="String">SCOTT</Parameter>
+                <Parameter Name="Source_Secret" DataType="String"></Parameter>
+                <Parameter Name="Target_Server" DataType="String">localhost</Parameter>
+                <Parameter Name="Target_InitialCatalog" DataType="String">ODS</Parameter>
+            </Parameters>
+            <Variables>
+                <Variable Name="varPackageLogID" DataType="Int32">0</Variable>
+                <Variable Name="varLastExtractDateTimeString" DataType="String"></Variable>
+                <Variable Name="varExtractLogID" DataType="Int32">0</Variable>
+                <Variable Name="RowCount" DataType="Int32">0</Variable>
+            </Variables>
+            <Connections>
+                <Connection ConnectionName="Source">
+                    <Expressions>
+                        <Expression ExternalProperty="ConnectionString">"SERVER=" + @[$Package::Source_Server] + ";USERNAME=" + @[$Package::Source_User] + ";PASSWORD=" + @[$Package::Source_Secret] + ";ORACLEHOME=;ORACLEHOME64=;WINAUTH=0"</Expression>
+                    </Expressions>
+                </Connection>
+                <Connection ConnectionName="Target">
+                    <Expressions>
+                        <Expression ExternalProperty="ConnectionString">"Data Source=" + @[$Package::Target_Server] + ";Initial Catalog=" + @[$Package::Target_InitialCatalog] + ";Provider=SQLNCLI11.1;Integrated Security=SSPI;"</Expression>
+                    </Expressions>
+                </Connection>
+            </Connections>
+            <Tasks>
+                <ExecuteSQL Name="Update Audit Table - Start of Package" ConnectionName="Target" ResultSet="SingleRow">
+                    <DirectInput>EXEC CONTROLS.InitPackageLog ?</DirectInput>
+                    <Parameters>
+                        <Parameter Name="0" VariableName="System.PackageName" DataType="String"/>
+                    </Parameters>
+                    <Results>
+                        <Result VariableName="User.varPackageLogID" Name="0" />
+                    </Results>                
+                </ExecuteSQL>
+                <# 
+                // Set query string to identify tables to import
+                string tableQuery = "SELECT table_name from INFORMATION_SCHEMA.TABLES where TABLE_TYPE='BASE TABLE' AND table_schema='" + _targetschema + "' AND table_name NOT IN (" + _excludedTables + ") AND ABS((CHECKSUM(table_name))%5)=" + packagecount + " -1" ;
+                // Get table name list
+                var tableNamesToImport = ExternalDataAccess.GetDataTable(conn, tableQuery).Rows.OfType<System.Data.DataRow>().Select(r => r[0].ToString());
+                // Get table details for load
+                var importResult = conn.GetDatabaseSchema(includedSchema, tableNamesToImport, ImportOptions.None); 
+                // Loop over results  
+                foreach(var _table in importResult.TableNodes.Where(item => tableNamesToImport.Contains(item.Name))) 
+                // Use the following three lines in lieu of the preceding import result and foreach for testing
+                //var includedTables = new List<string>{"MYTAB"};
+                //var importResult = conn.GetDatabaseSchema(includedSchema, includedTables, ImportOptions.None); 
+                //foreach(var _table in importResult.TableNodes)
+                {    #>
+                    <ExecuteSQL Name="Update Audit Table - Start of <#=_table#> Extract" ConnectionName="Target" ResultSet="SingleRow">
+                        <DirectInput>EXEC CONTROLS.InitExtractLog ?,'<#=_table#>'</DirectInput>
+                        <Parameters>
+                            <Parameter Name="0" VariableName="User.varPackageLogID" DataType="Int32"/>
+                        </Parameters>
+                        <Results>
+                            <Result VariableName="User.varExtractLogID" Name="0" />
+                            <Result VariableName="User.varLastExtractDateTimeString" Name="1" />
+                        </Results> 
+                    </ExecuteSQL>  
+                    <ExecuteSQL Name="Truncate <#=_table#>" ConnectionName="Target">
+                        <DirectInput>truncate table [<#= _targetschema #>].[<#=_table#>]</DirectInput>
+                    </ExecuteSQL>
+                    <Dataflow Name="DFT_CopyData_<#=_table#>">
+                        <Transformations>
+                        <CustomComponent Name="Oracle Source" LocaleId="None" Version="6" UsesDispositions="true" ValidateExternalMetadata="false" ComponentClassId="{2C485CEC-C064-41D8-87E0-B2160CBCF9D6}" ComponentTypeName="2C485CEC-C064-41D8-87E0-B2160CBCF9D6" ContactInfo="Oracle Source;Microsoft Connector for Oracle by Attunity; Attunity Ltd.; All Rights Reserved; http://www.attunity.com;4">
+                            <Annotations>
+                                <Annotation AnnotationType="Description">Microsoft Oracle Source Component by Attunity</Annotation>
+                            </Annotations>
+                                <CustomProperties>
+                                    <CustomProperty Name="TableName" DataType="String" SupportsExpression="true" Description="The name of the table to be fetched."><#=_table_schema #>.<#= _table#></CustomProperty>
+                                    <CustomProperty Name="SqlCommand" DataType="String" SupportsExpression="true" Description="The SQL command to be executed.">SELECT * FROM <#=_table_schema #>.<#= _table#></CustomProperty>
+                                    <CustomProperty Name="BatchSize" DataType="Int32" SupportsExpression="true" Description="The number of rows fetched in a batch.">100</CustomProperty>
+                                    <CustomProperty Name="PrefetchCount" DataType="Int32" SupportsExpression="true" Description="Number of pre-fetched rows.">0</CustomProperty>
+                                    <CustomProperty Name="LobChunkSize" DataType="Int32" SupportsExpression="true" Description="Determines the chunk size allocation for LOB columns">32768</CustomProperty>
+                                    <CustomProperty Name="DefaultCodePage" DataType="Int32" SupportsExpression="true" Description="The code page to use when code page information is unavailable from the data source.">1252</CustomProperty>
+                                    <CustomProperty Name="AccessMode" DataType="Int32" TypeConverter="AccessMode" Description="The mode used to access the database.">1</CustomProperty>
+                                </CustomProperties>
+                                <OutputPaths>
+                                    <OutputPath Name="Oracle Source Output" ErrorRowDisposition="FailComponent" TruncationRowDisposition="FailComponent">
+                                        <OutputColumns>
+                                            <# foreach (var column in _table.Columns) { #>
+                                                <OutputColumn Name="<#=column.Name#>" DataType="<#=column.DataType#>" Length="<#=column.Length#>" ExternalMetadataColumnName="<#=column.Name#>" />
+                                            <# } #>
+                                        </OutputColumns>
+                                        <ExternalColumns>
+                                            <# foreach (var column in _table.Columns) { #>
+                                                <ExternalColumn Name="<#=column.Name#>" DataType="<#=column.DataType#>" Length="<#=column.Length#>"/>
+                                            <# } #>
+                                        </ExternalColumns>
+                                    </OutputPath>
+                                    <OutputPath Name="Oracle Source Error Output" IsErrorOutput="true">
+                                        <OutputColumns>
+                                            <# foreach (var column in _table.Columns) { #>
+                                                <OutputColumn Name="<#=column.Name#>" DataType="<#=column.DataType#>" Length="<#=column.Length#>" ExternalMetadataColumnName="<#=column.Name#>" />
+                                            <# } #>
+                                        </OutputColumns>
+                                    </OutputPath>                                
+                                </OutputPaths>
+                                <Connections>
+                                    <Connection Name="MSOraConnection" ConnectionName="Source" />
+                                </Connections>
+                            </CustomComponent>
+                            <RowCount VariableName="User.RowCount" Name="Row Count">
+                                <InputPath OutputPathName="Oracle Source.Oracle Source Output"/>
+                            </RowCount>
+
+                            <OleDbDestination Name="Load Rows" ConnectionName="Target" >
+                                <!--InputPath OutputPathName="Oracle Source.Oracle Source Output" SsisName="OLE DB Destination Input" /-->
+                                <ExternalTableOutput Table="[<#= _targetschema #>].[<#=_table#>]" />
+                            </OleDbDestination>
+                        </Transformations>
+                    </Dataflow>
+                    <ExecuteSQL Name="Update Audit Table - <#=_table#> Rows Processed" ConnectionName="Target">
+                        <DirectInput>EXEC CONTROLS.EndExtractLog ?,?</DirectInput>
+                        <Parameters>
+                            <Parameter Name="0" VariableName="User.varExtractLogID" DataType="Int32"/>
+                            <Parameter Name="1" VariableName="User.RowCount" DataType="Int32"/>                    
+                        </Parameters>
+                    </ExecuteSQL> 
+                <# } #>
+                <ExecuteSQL Name="Insert End of process into Staging PackageAuditingTable" ConnectionName="Target">
+                    <DirectInput>EXEC CONTROLS.EndPackageLog ?</DirectInput>
+                    <Parameters>
+                        <Parameter Name="0" VariableName="User.varPackageLogID"  DataType="Int32"/>
+                    </Parameters>
+                </ExecuteSQL>
+            </Tasks>
+        </Package>
+    <# } #> 
+    </Packages>
+</Biml>

@@ -1,0 +1,6 @@
+<Biml xmlns="http://schemas.varigence.com/biml.xsd">
+    <#@ template tier="999"#>
+<#
+System.IO.File.WriteAllText(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Debug.biml"), RootNode.GetBiml());
+#>
+</Biml>
